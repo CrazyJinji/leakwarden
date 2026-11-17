@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leakwarden"
-version = "0.2.0"
+version = "0.2.1"
 description = "Find leaked API keys, tokens and passwords in your code and git history before you deploy"
 readme = "README.md"
 license = "MIT"

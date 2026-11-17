@@ -36,7 +36,7 @@ Keys that are public by design, such as the Supabase anon key and Stripe publish
 ## Example
 
 ```
-leakwarden 0.2.0 (free edition)  ./my-app
+leakwarden 0.2.1 (free edition)  ./my-app
 
 Coverage
   - secrets (working tree): checked 12 text files
@@ -63,13 +63,13 @@ The report also lists the areas it did not check, so a quiet report is not mista
 ## Options
 
 ```
---format text|json|markdown   report format (default: text)
---output FILE                 write the report to a file
---min-severity LEVEL          hide findings below info, low, medium or high (default: low)
---fail-on LEVEL               exit with status 1 at or above this level, or never (default: high)
---no-history                  skip the git history scan
---max-commits N               how many commits to read (default: 500)
---history-range BASE..HEAD    read only these commits, for example in CI on a pull request
+--format text|json|markdown|html   report format (default: text)
+--output FILE                      write the report to a file
+--min-severity LEVEL               hide findings below info, low, medium or high (default: low)
+--fail-on LEVEL                    exit with status 1 at or above this level, or never (default: high)
+--no-history                       skip the git history scan
+--max-commits N                    how many commits to read (default: 500)
+--history-range BASE..HEAD         read only these commits, for example in CI on a pull request
 ```
 
 Exit status is 0 when nothing reaches `--fail-on`, 1 when something does, and 2 on a usage error.
