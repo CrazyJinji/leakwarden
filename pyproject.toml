@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leakwarden"
+version = "0.2.0"
+description = "Find leaked API keys, tokens and passwords in your code and git history before you deploy"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Leon Krasnik" }]
+requires-python = ">=3.8"
+dependencies = []
+keywords = ["security", "secrets", "scanner", "git", "supabase", "ai"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Environment :: Console",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://leakwarden.dev"
+Source = "https://github.com/CrazyJinji/leakwarden"
+
+[project.scripts]
+leakwarden = "leakwarden:main"
+
+[tool.setuptools]
+py-modules = ["leakwarden"]
