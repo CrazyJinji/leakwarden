@@ -8,6 +8,15 @@ This is the free edition, MIT licensed. [LeakWarden Pro](https://leakwarden.dev)
 
 ## Run it
 
+Install it from PyPI:
+
+```
+pipx install leakwarden        # or: pip install leakwarden
+leakwarden /path/to/your/project
+```
+
+Or download the single file and run it, nothing to install:
+
 ```
 curl -O https://leakwarden.dev/download/leakwarden.py
 python3 leakwarden.py /path/to/your/project
