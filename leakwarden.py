@@ -475,6 +475,8 @@ def env_value_is_public(name: str, value: str) -> bool:
         return True
     if value.startswith(("sb_publishable_",)):
         return True
+    if "WEBHOOK" in name.upper() or re.search(r"hooks\.slack\.com|discord(?:app)?\.com/api/webhooks|[?&](?:token|key|secret|sig)=", value, re.I):
+        return False
     return bool(PUBLIC_ENV_NAME_SUFFIX_RE.search(name.upper())) and "@" not in value
 
 
@@ -614,7 +616,7 @@ class Scanner:
                     sev, title = "low", title + " (seed script)"
                 elif rule == "secret.hardcoded_password" and LOCAL_SCRIPT_RE.search(low_rel) and LOCALHOST_RE.search(text):
                     sev, title = "low", title + " (local test or load script)"
-                elif rule == "secret.hardcoded_password" and (
+                elif rule == "secret.hardcoded_password" and not env_file and (
                         SAMPLE_PATH_RE.search(low_rel)
                         or any(SAMPLE_EMAIL_RE.search(l) for l in lines[max(0, i - 7):i + 6])
                         or any(SAMPLE_NAME_RE.search(l) for l in lines[max(0, i - 16):i])):
