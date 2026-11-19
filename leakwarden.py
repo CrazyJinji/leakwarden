@@ -321,6 +321,9 @@ def password_value_ok(value: str) -> bool:
 DOC_SUFFIXES = (".md", ".mdx", ".rst", ".adoc")
 LOCALE_PATH_RE = re.compile(r"(^|/)(locales?|i18n|l10n|lang|langs|translations?)(/|$)", re.I)
 SAMPLE_EMAIL_RE = re.compile(r"@(?:example\.(?:com|org|net)|test\.com|demo\.com|localhost)\b", re.I)
+INFRA_PW_NAME_RE = re.compile(r"(?i)(?:db|database|smtp|email|mail|redis|postgres|pg|mysql|mongo|ftp|sftp|ldap|rabbit|amqp|broker|service|root|master)_?\w*(?:pass|pwd)")
+LOCAL_SCRIPT_RE = re.compile(r"(^|/)(scripts?|load|loadtest|stress|bench|benchmarks?|k6|perf)(/|[-_.])|(load|stress|bench|perf)[-_]?test", re.I)
+LOCALHOST_RE = re.compile(r"localhost|127\.0\.0\.1")
 SAMPLE_NAME_RE = re.compile(
     r"\b(?:DEMO|TEST|SAMPLE|MOCK|DUMMY|FAKE)_[A-Z_]*\b|\b(?:demo|test|sample|mock|dummy|fake)(?:Users?|Accounts?|Credentials?|Logins?|Password)\b")
 SAMPLE_PATH_RE = re.compile(r"(^|/|[-_.])(demo|mock|mocks|sample|samples|seed|seeds|test[-_]?users|test[-_]?accounts)([-_./]|$)", re.I)
@@ -459,9 +462,29 @@ def env_name_is_public(name: str) -> bool:
     return not SENSITIVE_ENV_NAME_RE.search(name) or bool(PUBLIC_SAFE_ENV_NAME_RE.search(name))
 
 
+PUBLIC_ENV_NAME_SUFFIX_RE = re.compile(r"(?:_URL|_URI|_HOST|_DOMAIN|_REGION|_PORT|_ENV|_MODE|_PROJECT_ID|_PROJECT_REF|^NODE_ENV)$")
+
+
+def env_value_is_public(name: str, value: str) -> bool:
+    """Values meant for the browser or not secret at all: empty, placeholders, Stripe publishable keys,
+    Supabase anon keys, plain URLs without credentials."""
+    value = value.strip().strip("'\"")
+    if not value or looks_placeholder(value):
+        return True
+    if re.match(r"pk_(?:live|test)_", value) or decode_jwt_role(value) == "anon":
+        return True
+    if value.startswith(("sb_publishable_",)):
+        return True
+    return bool(PUBLIC_ENV_NAME_SUFFIX_RE.search(name.upper())) and "@" not in value
+
+
 def env_text_public_only(text: str) -> bool:
-    names = [m.group(1) for m in (ENV_KEY_RE.match(l) for l in text.splitlines()) if m]
-    return bool(names) and all(env_name_is_public(n) for n in names)
+    pairs = []
+    for l in text.splitlines():
+        m = ENV_KEY_RE.match(l)
+        if m:
+            pairs.append((m.group(1), l[m.end():]))
+    return bool(pairs) and all(env_name_is_public(n) or env_value_is_public(n, v) for n, v in pairs)
 
 
 class Scanner:
@@ -589,6 +612,8 @@ class Scanner:
                     continue  # documentation examples and UI translations, not credentials
                 if rule == "secret.hardcoded_password" and SEED_PATH_RE.search(low_rel):
                     sev, title = "low", title + " (seed script)"
+                elif rule == "secret.hardcoded_password" and LOCAL_SCRIPT_RE.search(low_rel) and LOCALHOST_RE.search(text):
+                    sev, title = "low", title + " (local test or load script)"
                 elif rule == "secret.hardcoded_password" and (
                         SAMPLE_PATH_RE.search(low_rel)
                         or any(SAMPLE_EMAIL_RE.search(l) for l in lines[max(0, i - 7):i + 6])
@@ -596,6 +621,11 @@ class Scanner:
                     sev, title = "low", title + " (looks like sample or demo credentials)"
                 if rule == "secret.private_key" and (in_tests or not pem_ok()):
                     continue
+                if (rule == "secret.hardcoded_password" and sev == "high" and not env_file
+                        and not INFRA_PW_NAME_RE.search(title.split("'")[1] if "'" in title else "")):
+                    # a plain "password: '...'" in code is often a demo login or a fixture; service
+                    # credentials (EMAIL_HOST_PASSWORD, DB_PASSWORD, SMTP_PASS) stay high
+                    sev = "medium"
                 self.add(rule, sev, title, rel, i, ev, SECRET_ADVICE, vh=sha(val))
     def check_env_files(self, texts):
         gitignore = texts.get(".gitignore", "")
