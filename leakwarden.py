@@ -31,7 +31,7 @@ import sys
 import time
 from dataclasses import dataclass, asdict, field
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 EDITION = "free"
 
 SEVERITIES = ["info", "low", "medium", "high"]
@@ -277,6 +277,19 @@ def decode_jwt_role(token: str):
         return None
 
 
+# Client-side tokens that a payment SDK is built to expose in the browser. Paddle Billing client-side
+# tokens are test_ or live_ plus 27 hex characters (Lovable projects read them as VITE_PAYMENTS_CLIENT_TOKEN).
+# Server API keys have other shapes, so both the name and the exact value shape must match. A bare
+# "token" key covers Paddle.Initialize({ token: "live_..." }).
+CLIENT_TOKEN_NAME_RE = re.compile(r"(?i)client_?(?:side_?)?token|^token$")
+PADDLE_CLIENT_TOKEN_RE = re.compile(r"(?:test|live)_[0-9a-f]{27}")
+
+
+def is_public_client_token(name: str, value: str) -> bool:
+    value = value.strip().strip("'\"")
+    return bool(CLIENT_TOKEN_NAME_RE.search(name) and PADDLE_CLIENT_TOKEN_RE.fullmatch(value))
+
+
 def generic_value_ok(value: str) -> bool:
     if looks_placeholder(value):
         return False
@@ -369,7 +382,8 @@ def scan_line_for_secrets(line: str, is_env_file: bool, known_only: bool = False
 
     for m in GENERIC_ASSIGN_RE.finditer(line):
         val = m.group(2)
-        if GENERIC_NAME_RE.search(m.group(1)) and generic_value_ok(val) and not overlaps_known(m.span(2)):
+        if (GENERIC_NAME_RE.search(m.group(1)) and generic_value_ok(val) and not overlaps_known(m.span(2))
+                and not is_public_client_token(m.group(1), val)):
             spans.add(m.span(2))
             yield ("secret.generic", "medium",
                    "Hard-coded value assigned to '%s'" % m.group(1), m.span(2), val)
@@ -380,7 +394,8 @@ def scan_line_for_secrets(line: str, is_env_file: bool, known_only: bool = False
                    "Hard-coded password assigned to '%s'" % m.group(1), m.span(2), m.group(2))
     if is_env_file:
         m = ENVFILE_ASSIGN_RE.match(line)
-        if m and generic_value_ok(m.group(2)) and not overlaps_known(m.span(2)):
+        if (m and generic_value_ok(m.group(2)) and not overlaps_known(m.span(2))
+                and not is_public_client_token(m.group(1), m.group(2))):
             spans.add(m.span(2))
             yield ("secret.generic", "medium",
                    "Secret-looking value in env file ('%s')" % m.group(1), m.span(2), m.group(2))
@@ -473,7 +488,7 @@ def env_value_is_public(name: str, value: str) -> bool:
         return True
     if re.match(r"pk_(?:live|test)_", value) or decode_jwt_role(value) == "anon":
         return True
-    if value.startswith(("sb_publishable_",)):
+    if value.startswith(("sb_publishable_",)) or is_public_client_token(name, value):
         return True
     if "WEBHOOK" in name.upper() or re.search(r"hooks\.slack\.com|discord(?:app)?\.com/api/webhooks|[?&](?:token|key|secret|sig)=", value, re.I):
         return False
@@ -709,7 +724,8 @@ class Scanner:
             added = line[1:]
             if is_env_filename(cur_file) and not is_env_template(cur_file):
                 km = ENV_KEY_RE.match(added)
-                if km and not env_name_is_public(km.group(1)):
+                if km and not (env_name_is_public(km.group(1))
+                               or is_public_client_token(km.group(1), added[km.end():])):
                     env_public[cur_file] = False
                 else:
                     env_public.setdefault(cur_file, True)

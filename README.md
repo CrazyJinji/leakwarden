@@ -36,7 +36,7 @@ Keys that are public by design, such as the Supabase anon key and Stripe publish
 ## Example
 
 ```
-leakwarden 0.2.1 (free edition)  ./my-app
+leakwarden 0.2.2 (free edition)  ./my-app
 
 Coverage
   - secrets (working tree): checked 12 text files
